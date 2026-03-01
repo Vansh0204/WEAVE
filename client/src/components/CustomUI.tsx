@@ -35,7 +35,7 @@ export default function CustomUI({ storeWithStatus }: { storeWithStatus: any }) 
             setPresenterId(currentPresenter);
 
             // Sync camera for everyone else if I'm not the one presenting
-            const myId = provider.awareness.clientID; // Must be string to match currentPresenter
+            const myId = provider.awareness.clientID.toString(); // String to match currentPresenter type
             const someoneElsePresenting = currentPresenter !== null && currentPresenter !== myId;
 
             // LOCK/UNLOCK editing: Follower should be locked, Presenter should be unlocked.
