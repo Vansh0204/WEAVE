@@ -35,7 +35,11 @@ export default function CustomUI({ storeWithStatus }: { storeWithStatus: any }) 
             setPresenterId(currentPresenter);
 
             // Sync camera for everyone else if I'm not the one presenting
+<<<<<<< HEAD
             const myId = provider.awareness.clientID; // Must be string to match currentPresenter
+=======
+            const myId = provider.awareness.clientID;
+>>>>>>> d7016ae (fix: revert controls bar back to bottom-right position)
             const someoneElsePresenting = currentPresenter !== null && currentPresenter !== myId;
 
             // LOCK/UNLOCK editing: Follower should be locked, Presenter should be unlocked.
@@ -154,7 +158,7 @@ export default function CustomUI({ storeWithStatus }: { storeWithStatus: any }) 
 
             <div style={{
                 position: 'absolute',
-                top: 60,
+                bottom: 60,
                 right: 20,
                 zIndex: 9999,
                 display: 'flex',
