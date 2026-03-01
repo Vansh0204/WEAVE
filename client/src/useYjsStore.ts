@@ -24,24 +24,31 @@ export function useYjsStore({ roomId, hostUrl }: { roomId: string; hostUrl: stri
         historyTriggers: 0
     });
 
+    // Determine the signaling URL dynamically
+    const signalingUrl = hostUrl || import.meta.env.VITE_SIGNALING_URL || `ws://${window.location.hostname}:5002`;
+
     useEffect(() => {
         if (!roomId) return;
 
         const store = createTLStore({ shapeUtils: defaultShapeUtils });
         const ydoc = new Y.Doc();
-        console.log('--- WEAVE DIAGNOSTIC START ---');
-        console.log('Connecting to ONLY local signaling:', hostUrl, 'Room:', roomId);
+
+        console.table({
+            'WEAVE Status': 'Connecting...',
+            'Room ID': roomId,
+            'Signaling Server': signalingUrl,
+            'Mode': window.location.hostname === 'localhost' ? 'Development' : 'Production'
+        });
 
         const provider = new WebrtcProvider(roomId, ydoc, {
-            signaling: [hostUrl],
+            signaling: [signalingUrl],
         });
 
         provider.on('status', (event: any) => {
-            console.log('WebRTC Provider Status Event:', event);
-        });
-
-        provider.on('synced', (event: any) => {
-            console.log('WebRTC Provider Synced Event:', event);
+            console.log('📡 WebRTC Status:', event.status);
+            if (event.status === 'connected') {
+                console.log('✅ WebRTC Connected to signaling server.');
+            }
         });
 
         const yStore = ydoc.getMap<TLRecord>('tldraw');
@@ -64,7 +71,7 @@ export function useYjsStore({ roomId, hostUrl }: { roomId: string; hostUrl: stri
         };
 
         const handleSync = () => {
-            console.log('WebRTC Initial Sync Complete');
+            console.log('📦 Board Synced with peers.');
             const records = Array.from(yStore.values()).filter(r => !isLocalOnly(r));
             if (records.length > 0) {
                 store.mergeRemoteChanges(() => {
@@ -94,9 +101,6 @@ export function useYjsStore({ roomId, hostUrl }: { roomId: string; hostUrl: stri
                 if (history.source === 'remote' || isPaused) return;
 
                 const { added, updated, removed } = history.changes;
-                const addedCount = added ? Object.keys(added).length : 0;
-                if (addedCount > 0) console.log('Syncing', addedCount, 'new shapes to Yjs...');
-
                 ydoc.transact(() => {
                     if (added) {
                         Object.values(added).forEach((record) => {
@@ -157,7 +161,7 @@ export function useYjsStore({ roomId, hostUrl }: { roomId: string; hostUrl: stri
             provider.destroy();
             ydoc.destroy();
         };
-    }, [roomId, hostUrl]);
+    }, [roomId, hostUrl, signalingUrl]);
 
     return storeWithStatus;
 }

@@ -10,9 +10,20 @@ export default function App() {
   const [sessionId, setSessionId] = useState('');
   const [inSession, setInSession] = useState(false);
 
-  // Determine the backend/signaling URLs dynamically
-  const isProd = window.location.hostname !== 'localhost';
-  const backendBaseUrl = import.meta.env.VITE_BACKEND_URL || (isProd ? `https://${window.location.hostname.replace('frontend', 'backend')}` : 'http://localhost:5002');
+  // --- DYNAMIC INFRASTRUCTURE SENSING ---
+  const isProd = window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
+
+  // Try to find the backend app based on common patterns
+  let detectedBackend = window.location.hostname;
+  if (detectedBackend.includes('-frontend')) {
+    detectedBackend = detectedBackend.replace('-frontend', '-backend');
+  } else if (detectedBackend.includes('front')) {
+    detectedBackend = detectedBackend.replace('front', 'back');
+  }
+
+  const backendBaseUrl = import.meta.env.VITE_BACKEND_URL ||
+    (isProd ? `https://${detectedBackend}` : 'http://localhost:5002');
+
   const signalingUrl = backendBaseUrl.replace('http', 'ws');
 
   // This connects us to the sharing network
