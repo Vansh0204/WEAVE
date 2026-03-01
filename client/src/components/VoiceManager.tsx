@@ -22,12 +22,12 @@ export default function VoiceManager({ provider, isMuted }: VoiceManagerProps) {
             console.log('🎙️ VoiceManager: Setting up microphone...');
             try {
                 if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                    console.error('❌ Browser does not support getUserMedia. (Check if using HTTPS!)');
+                    console.error('❌ VoiceManager: Browser does not support getUserMedia. (Check HTTPS!)');
                     return;
                 }
 
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                console.log('✅ Microphone access granted.');
+                console.log('✅ VoiceManager: Microphone access granted.');
                 myStreamRef.current = stream;
 
                 // Set initial mute state
@@ -45,7 +45,7 @@ export default function VoiceManager({ provider, isMuted }: VoiceManagerProps) {
                         if (!peersRef.current[peerId] && state.voiceSignalInit) {
                             // Deterministic initiator: the one with the higher ID starts
                             const isInitiator = parseInt(myId!) > parseInt(peerId);
-                            console.log(`🤝 VoiceManager: Found peer ${peerId}. Initiating: ${isInitiator}`);
+                            console.log(`🤝 VoiceManager: Peer ${peerId} discovered. Role: ${isInitiator ? 'Initiator' : 'Receiver'}`);
                             initiatePeer(peerId, isInitiator);
                         }
                     });
@@ -54,7 +54,7 @@ export default function VoiceManager({ provider, isMuted }: VoiceManagerProps) {
                 const initiatePeer = (peerId: string, initiator: boolean) => {
                     if (peersRef.current[peerId]) return;
 
-                    console.log(`📡 VoiceManager: Creating peer object for ${peerId} (Initiator: ${initiator})`);
+                    console.log(`📡 VoiceManager: Spawning Peer for ${peerId}...`);
                     const p = new Peer({
                         initiator,
                         trickle: false,
@@ -62,19 +62,15 @@ export default function VoiceManager({ provider, isMuted }: VoiceManagerProps) {
                         config: {
                             iceServers: [
                                 { urls: 'stun:stun.l.google.com:19302' },
+                                { urls: 'stun:stun1.l.google.com:19302' },
+                                { urls: 'stun:stun2.l.google.com:19302' },
                                 { urls: 'stun:global.stun.twilio.com:3478' }
                             ]
                         }
                     });
 
                     p.on('signal', (data) => {
-                        /**
-                         * 💡 COOL HACK: Signaling via Yjs Awareness!
-                         * Usually WebRTC needs a signaling server. We're using Yjs Awareness
-                         * to broadcast our WebRTC handshake signals to each other.
-                         * This avoids a complex backend setup.
-                         */
-                        console.log(`📤 VoiceManager: Sending signal to ${peerId}`);
+                        console.log(`📤 VoiceManager: Signal generated for ${peerId}, sending via Yjs...`);
                         awareness.setLocalStateField(`signal_${peerId}`, data);
                         if (initiator) {
                             awareness.setLocalStateField('voiceSignalInit', true);
@@ -82,20 +78,20 @@ export default function VoiceManager({ provider, isMuted }: VoiceManagerProps) {
                     });
 
                     p.on('connect', () => {
-                        console.log(`🎉 VoiceManager: P2P Connected with ${peerId}!`);
+                        console.log(`🎉 VoiceManager: WebRTC P2P CONNECTED with ${peerId}!`);
                     });
 
                     p.on('stream', (remoteStream) => {
-                        console.log(`🎵 VoiceManager: Receiving audio stream from ${peerId}`);
+                        console.log(`🎵 VoiceManager: REMOTE STREAM DETECTED from ${peerId}`);
                         setStreams(prev => ({ ...prev, [peerId]: remoteStream }));
                     });
 
                     p.on('error', (err) => {
-                        console.error(`❌ VoiceManager: Peer error with ${peerId}:`, err);
+                        console.error(`❌ VoiceManager: Peer ${peerId} error:`, err);
                     });
 
                     p.on('close', () => {
-                        console.log(`👋 VoiceManager: Connection closed with ${peerId}`);
+                        console.log(`👋 VoiceManager: Connection with ${peerId} closed.`);
                         delete peersRef.current[peerId];
                         delete processedSignalsRef.current[peerId];
                         setStreams(prev => {
@@ -109,7 +105,7 @@ export default function VoiceManager({ provider, isMuted }: VoiceManagerProps) {
                 };
 
                 // Trigger initiation for others
-                console.log('📢 VoiceManager: Broadcasting that I am ready for voice.');
+                console.log('📢 VoiceManager: Signating readiness for voice calls.');
                 awareness.setLocalStateField('voiceSignalInit', true);
 
                 awareness.on('change', () => {
@@ -125,19 +121,18 @@ export default function VoiceManager({ provider, isMuted }: VoiceManagerProps) {
                                 processedSignalsRef.current[peerId] = new Set();
                             }
 
-                            // Only process this specific signal if we haven't seen it before
                             if (!processedSignalsRef.current[peerId].has(signalStr)) {
                                 processedSignalsRef.current[peerId].add(signalStr);
 
                                 if (peersRef.current[peerId]) {
                                     try {
-                                        console.log(`📥 VoiceManager: Processing NEW incoming signal from ${peerId}`);
+                                        console.log(`📥 VoiceManager: Applying incoming signal from ${peerId}`);
                                         (peersRef.current[peerId] as any).signal(incomingSignal);
                                     } catch (e) {
-                                        console.error(`❌ VoiceManager: Signal error with ${peerId}:`, e);
+                                        console.error(`❌ VoiceManager: Failed to apply signal from ${peerId}:`, e);
                                     }
                                 } else {
-                                    console.log(`📥 VoiceManager: Received NEW signal from ${peerId} before peer creation. Creating now...`);
+                                    console.log(`📥 VoiceManager: Late signal received from ${peerId}, force-creating receiver peer.`);
                                     initiatePeer(peerId, false);
                                     (peersRef.current[peerId] as any).signal(incomingSignal);
                                 }
@@ -148,9 +143,9 @@ export default function VoiceManager({ provider, isMuted }: VoiceManagerProps) {
                 });
 
             } catch (err: any) {
-                console.error('❌ VoiceManager: Microphone access denied or Error:', err);
+                console.error('❌ VoiceManager: Critical Error:', err);
                 if (err.name === 'NotAllowedError') {
-                    alert('Please allow microphone access in your browser to use Voice Chat.');
+                    alert('Microphone access is blocked! Please enable it in browser settings.');
                 }
             }
         };
@@ -158,7 +153,7 @@ export default function VoiceManager({ provider, isMuted }: VoiceManagerProps) {
         setupMic();
 
         return () => {
-            console.log('🧹 VoiceManager: Cleaning up...');
+            console.log('🧹 VoiceManager: Destroying all voice connections...');
             myStreamRef.current?.getTracks().forEach(track => track.stop());
             Object.values(peersRef.current).forEach(p => p.destroy());
         };
@@ -166,7 +161,7 @@ export default function VoiceManager({ provider, isMuted }: VoiceManagerProps) {
 
     useEffect(() => {
         if (myStreamRef.current) {
-            console.log(`🎤 VoiceManager: Mic ${isMuted ? 'MUTED' : 'UNMUTED'}`);
+            console.log(`🎤 VoiceManager: Local Mic ${isMuted ? 'MUTED' : 'UNMUTED'}`);
             myStreamRef.current.getAudioTracks().forEach(t => t.enabled = !isMuted);
         }
     }, [isMuted]);
@@ -174,16 +169,40 @@ export default function VoiceManager({ provider, isMuted }: VoiceManagerProps) {
     return (
         <div style={{ display: 'none' }}>
             {Object.entries(streams).map(([id, stream]) => (
-                <AudioPlayer key={id} stream={stream} />
+                <AudioPlayer key={id} stream={stream} peerId={id} />
             ))}
         </div>
     );
 }
 
-function AudioPlayer({ stream }: { stream: MediaStream }) {
+function AudioPlayer({ stream, peerId }: { stream: MediaStream; peerId: string }) {
     const audioRef = useRef<HTMLAudioElement>(null);
+
     useEffect(() => {
-        if (audioRef.current) audioRef.current.srcObject = stream;
-    }, [stream]);
-    return <audio ref={audioRef} autoPlay />;
+        if (audioRef.current) {
+            console.log(`🔊 AudioPlayer: Attaching stream for peer ${peerId}`);
+            audioRef.current.srcObject = stream;
+
+            // Explicitly call play to handle browser autoplay policies
+            const playAudio = async () => {
+                try {
+                    await audioRef.current?.play();
+                    console.log(`▶️ AudioPlayer: Playing audio for ${peerId}`);
+                } catch (err) {
+                    console.warn(`⚠️ AudioPlayer: Autoplay blocked for ${peerId}. User interaction required.`);
+                }
+            };
+            playAudio();
+        }
+    }, [stream, peerId]);
+
+    return (
+        <audio
+            ref={audioRef}
+            autoPlay
+            playsInline
+            controls={false}
+            style={{ display: 'none' }}
+        />
+    );
 }
