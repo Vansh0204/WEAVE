@@ -24,7 +24,15 @@ export default function App() {
   const backendBaseUrl = import.meta.env.VITE_BACKEND_URL ||
     (isProd ? `https://${detectedBackend}` : 'http://localhost:5002');
 
-  const signalingUrl = backendBaseUrl.replace('http', 'ws');
+  let signalingUrl = backendBaseUrl.replace('http', 'ws');
+
+  // FINAL FAIL-SAFE: If production signaling is accidentally pointing to frontend, flip it!
+  if (isProd && signalingUrl.includes('frontend')) {
+    signalingUrl = signalingUrl.replace('frontend', 'backend');
+    console.warn('⚠️ WEAVE: Signaling URL was pointing to frontend. Auto-redirected to backend.');
+  }
+
+  console.log('🌐 WEAVE Infrastructure:', { isProd, backendBaseUrl, signalingUrl });
 
   // This connects us to the sharing network
   const storeWithStatus = useYjsStore({
